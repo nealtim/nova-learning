@@ -1,0 +1,588 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Nova FPS</title>
+
+<style>
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: #080b12;
+  color: white;
+  font-family: Arial, sans-serif;
+  overflow: hidden;
+}
+
+header {
+  height: 55px;
+  background: #101620;
+  border-bottom: 1px solid #303b4b;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 22px;
+  position: relative;
+  z-index: 10;
+}
+
+header strong {
+  color: #ff3030;
+  letter-spacing: 3px;
+}
+
+header a {
+  color: white;
+  text-decoration: none;
+}
+
+#game {
+  height: calc(100vh - 55px);
+  position: relative;
+  overflow: hidden;
+  background: #111925;
+}
+
+canvas {
+  display: block;
+  position: absolute;
+  inset: 0;
+}
+
+#hud {
+  position: absolute;
+  z-index: 3;
+  top: 18px;
+  left: 18px;
+  padding: 13px 18px;
+  background: #080d16dd;
+  border: 1px solid #e3343c;
+  line-height: 1.9;
+  font-size: 14px;
+  pointer-events: none;
+}
+
+#crosshair {
+  position: absolute;
+  z-index: 3;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%,-50%);
+  color: #ff4242;
+  font-size: 28px;
+  pointer-events: none;
+}
+
+#instructions {
+  position: absolute;
+  z-index: 4;
+  bottom: 18px;
+  left: 50%;
+  transform: translateX(-50%);
+  color: white;
+  background: #080d16cc;
+  padding: 10px 18px;
+  border-radius: 5px;
+  font-size: 13px;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+#start {
+  position: absolute;
+  z-index: 8;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  background: #070b12eF;
+}
+
+#start h1 {
+  color: #ff3030;
+  font-size: 48px;
+  letter-spacing: 8px;
+  margin-bottom: 5px;
+}
+
+#start p {
+  color: #aeb8c8;
+  margin-bottom: 25px;
+}
+
+button {
+  padding: 15px 45px;
+  background: #e52e3b;
+  border: none;
+  color: white;
+  font-size: 17px;
+  font-weight: bold;
+  cursor: pointer;
+}
+
+button:hover {
+  background: #ff4b55;
+}
+
+#notice {
+  position: absolute;
+  z-index: 5;
+  top: 20px;
+  right: 20px;
+  color: #ff5555;
+  font-weight: bold;
+  pointer-events: none;
+}
+</style>
+</head>
+
+<body>
+
+<header>
+  <strong>✦ NOVA FPS</strong>
+  <a href="index.html">← HOME</a>
+</header>
+
+<div id="game">
+
+  <div id="hud">
+    HEALTH: 100<br>
+    SCORE: <span id="score">0</span><br>
+    AMMO: <span id="ammo">30</span> / 30
+  </div>
+
+  <div id="crosshair">+</div>
+
+  <div id="notice"></div>
+
+  <div id="instructions">
+    WASD: MOVE &nbsp; | &nbsp; MOUSE: LOOK &nbsp; | &nbsp; CLICK: SHOOT &nbsp; | &nbsp; R: RELOAD
+  </div>
+
+  <div id="start">
+    <h1>NOVA FPS</h1>
+    <p>TRAINING ARENA</p>
+    <p>WASD to move · Mouse to look · Click to shoot</p>
+    <button id="play">PLAY GAME</button>
+  </div>
+
+</div>
+
+<script type="module">
+import * as THREE from
+'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js';
+
+const game = document.getElementById("game");
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x101a29);
+scene.fog = new THREE.Fog(0x101a29, 25, 85);
+
+const camera = new THREE.PerspectiveCamera(
+  75,
+  game.clientWidth / game.clientHeight,
+  0.1,
+  150
+);
+
+camera.position.set(0, 1.7, 8);
+
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setSize(game.clientWidth, game.clientHeight);
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+game.prepend(renderer.domElement);
+
+// LIGHTING
+
+scene.add(new THREE.HemisphereLight(0xb8d9ff, 0x242b36, 2));
+
+const sun = new THREE.DirectionalLight(0xffffff, 2.2);
+sun.position.set(10, 20, 10);
+sun.castShadow = true;
+scene.add(sun);
+
+// MATERIALS
+
+const floorMat = new THREE.MeshStandardMaterial({
+  color: 0x303b49,
+  roughness: 0.9
+});
+
+const wallMat = new THREE.MeshStandardMaterial({
+  color: 0x283545,
+  roughness: 0.8
+});
+
+const redMat = new THREE.MeshStandardMaterial({
+  color: 0xff2525,
+  emissive: 0x7c0000
+});
+
+// FLOOR
+
+const floor = new THREE.Mesh(
+  new THREE.PlaneGeometry(100, 100),
+  floorMat
+);
+
+floor.rotation.x = -Math.PI / 2;
+floor.receiveShadow = true;
+scene.add(floor);
+
+const grid = new THREE.GridHelper(100, 50, 0x66788c, 0x465364);
+grid.position.y = 0.015;
+scene.add(grid);
+
+// ARENA WALLS
+
+function block(x, y, z, sx, sy, sz, material = wallMat) {
+  const mesh = new THREE.Mesh(
+    new THREE.BoxGeometry(sx, sy, sz),
+    material
+  );
+
+  mesh.position.set(x, y, z);
+  mesh.castShadow = true;
+  mesh.receiveShadow = true;
+  scene.add(mesh);
+  return mesh;
+}
+
+block(0, 3, -35, 70, 6, 1);
+block(-35, 3, 0, 1, 6, 70);
+block(35, 3, 0, 1, 6, 70);
+block(0, 3, 35, 70, 6, 1);
+
+// COVER AND BUILDINGS
+
+block(-12, 1.5, -12, 8, 3, 5);
+block(12, 2, -20, 7, 4, 7);
+block(-20, 1, -25, 6, 2, 6);
+block(20, 1, 0, 7, 2, 5);
+block(-8, 1, 5, 5, 2, 4);
+block(8, 1, -8, 5, 2, 4);
+
+// RED LIGHT STRIPS
+
+function lightStrip(x, y, z, sx, sy, sz) {
+  const strip = new THREE.Mesh(
+    new THREE.BoxGeometry(sx, sy, sz),
+    redMat
+  );
+  strip.position.set(x, y, z);
+  scene.add(strip);
+}
+
+lightStrip(-12, 3.05, -12, 7, 0.08, 0.08);
+lightStrip(12, 4.05, -20, 6, 0.08, 0.08);
+lightStrip(0, 0.05, -34.4, 20, 0.08, 0.08);
+
+// TARGET DRONES
+
+const targets = [];
+
+function createTarget(x, y, z) {
+  const group = new THREE.Group();
+
+  const body = new THREE.Mesh(
+    new THREE.SphereGeometry(0.65, 20, 16),
+    new THREE.MeshStandardMaterial({
+      color: 0x9b202b,
+      metalness: 0.65,
+      roughness: 0.3,
+      emissive: 0x310000
+    })
+  );
+
+  body.castShadow = true;
+  group.add(body);
+
+  const ring = new THREE.Mesh(
+    new THREE.TorusGeometry(0.9, 0.07, 8, 24),
+    new THREE.MeshStandardMaterial({
+      color: 0xff3030,
+      emissive: 0xff1010
+    })
+  );
+
+  ring.rotation.x = Math.PI / 2;
+  group.add(ring);
+
+  const eye = new THREE.Mesh(
+    new THREE.SphereGeometry(0.16, 12, 12),
+    new THREE.MeshBasicMaterial({ color: 0xffffff })
+  );
+
+  eye.position.z = 0.58;
+  group.add(eye);
+
+  group.position.set(x, y, z);
+  scene.add(group);
+  targets.push(group);
+}
+
+createTarget(-20, 2.5, -10);
+createTarget(-8, 2.5, -22);
+createTarget(8, 2.5, -28);
+createTarget(22, 2.5, -12);
+createTarget(0, 2.5, -32);
+createTarget(27, 2.5, -28);
+
+// PLAYER CAMERA
+
+let yaw = 0;
+let pitch = 0;
+const keys = {};
+
+const player = {
+  speed: 8
+};
+
+// MODERN FICTIONAL GAME RIFLE
+
+const gun = new THREE.Group();
+
+const darkMetal = new THREE.MeshStandardMaterial({
+  color: 0x171c24,
+  metalness: 0.8,
+  roughness: 0.35
+});
+
+const steel = new THREE.MeshStandardMaterial({
+  color: 0x626d79,
+  metalness: 0.85,
+  roughness: 0.3
+});
+
+const redGlow = new THREE.MeshBasicMaterial({
+  color: 0xff2525
+});
+
+function gunPart(sx, sy, sz, x, y, z, material) {
+  const part = new THREE.Mesh(
+    new THREE.BoxGeometry(sx, sy, sz),
+    material
+  );
+  part.position.set(x, y, z);
+  gun.add(part);
+  return part;
+}
+
+// Main body
+gunPart(0.28, 0.22, 0.85, 0, 0, 0, darkMetal);
+
+// Upper housing
+gunPart(0.25, 0.09, 0.75, 0, 0.15, -0.02, steel);
+
+// Front barrel section
+gunPart(0.12, 0.12, 0.55, 0, 0.02, -0.62, steel);
+
+// Front end
+gunPart(0.18, 0.16, 0.12, 0, 0.02, -0.91, darkMetal);
+
+// Stock
+gunPart(0.23, 0.18, 0.42, 0, 0.02, 0.58, darkMetal);
+
+// Grip
+const grip = gunPart(
+  0.17, 0.42, 0.22, 0, -0.29, 0.18, darkMetal
+);
+grip.rotation.x = -0.2;
+
+// Magazine-shaped decorative panel
+gunPart(0.18, 0.28, 0.22, 0, -0.19, -0.12, steel);
+
+// Top optic
+gunPart(0.18, 0.13, 0.25, 0, 0.28, -0.05, darkMetal);
+gunPart(0.12, 0.07, 0.15, 0, 0.37, -0.05, redGlow);
+
+// Red side details
+gunPart(0.025, 0.045, 0.42, 0.15, 0.03, -0.05, redGlow);
+
+// Small side panels
+gunPart(0.025, 0.11, 0.18, 0.15, -0.04, 0.27, steel);
+gunPart(0.025, 0.11, 0.18, -0.15, -0.04, 0.27, steel);
+
+// Attach gun to camera
+gun.position.set(0.38, -0.34, -0.65);
+gun.rotation.y = -0.05;
+camera.add(gun);
+scene.add(camera);
+
+// MOVEMENT
+
+document.addEventListener("keydown", (event) => {
+  keys[event.code] = true;
+
+  if (event.code === "KeyR") {
+    ammo = 30;
+    updateHUD();
+  }
+});
+
+document.addEventListener("keyup", (event) => {
+  keys[event.code] = false;
+});
+
+document.addEventListener("mousemove", (event) => {
+  if (document.pointerLockElement !== renderer.domElement) return;
+
+  yaw -= event.movementX * 0.002;
+  pitch -= event.movementY * 0.002;
+
+  pitch = Math.max(-1.45, Math.min(1.45, pitch));
+
+  camera.rotation.order = "YXZ";
+  camera.rotation.y = yaw;
+  camera.rotation.x = pitch;
+});
+
+function movePlayer(delta) {
+  if (document.pointerLockElement !== renderer.domElement) return;
+
+  const forward = new THREE.Vector3(
+    -Math.sin(yaw), 0, -Math.cos(yaw)
+  );
+
+  const right = new THREE.Vector3(
+    Math.cos(yaw), 0, -Math.sin(yaw)
+  );
+
+  const direction = new THREE.Vector3();
+
+  if (keys["KeyW"]) direction.add(forward);
+  if (keys["KeyS"]) direction.sub(forward);
+  if (keys["KeyD"]) direction.add(right);
+  if (keys["KeyA"]) direction.sub(right);
+
+  if (direction.lengthSq() > 0) {
+    direction.normalize();
+    camera.position.addScaledVector(
+      direction,
+      player.speed * delta
+    );
+  }
+
+  camera.position.x = THREE.MathUtils.clamp(
+    camera.position.x, -32, 32
+  );
+
+  camera.position.z = THREE.MathUtils.clamp(
+    camera.position.z, -32, 32
+  );
+}
+
+// SHOOTING
+
+let score = 0;
+let ammo = 30;
+
+const raycaster = new THREE.Raycaster();
+
+function updateHUD() {
+  document.getElementById("score").textContent = score;
+  document.getElementById("ammo").textContent = ammo;
+}
+
+function shoot() {
+  if (ammo <= 0) {
+    document.getElementById("notice").textContent = "PRESS R TO RELOAD";
+    return;
+  }
+
+  ammo--;
+  updateHUD();
+
+  raycaster.setFromCamera(
+    new THREE.Vector2(0, 0),
+    camera
+  );
+
+  const hits = raycaster.intersectObjects(
+    targets.flatMap(target => target.children),
+    true
+  );
+
+  if (hits.length > 0) {
+    const target = hits[0].object.parent;
+
+    if (targets.includes(target)) {
+      scene.remove(target);
+      targets.splice(targets.indexOf(target), 1);
+      score += 100;
+      updateHUD();
+
+      document.getElementById("notice").textContent = "+100";
+
+      setTimeout(() => {
+        document.getElementById("notice").textContent = "";
+      }, 700);
+
+      const x = THREE.MathUtils.randFloat(-25, 25);
+      const z = THREE.MathUtils.randFloat(-30, -8);
+      createTarget(x, 2.5, z);
+    }
+  }
+}
+
+game.addEventListener("click", () => {
+  if (document.pointerLockElement === renderer.domElement) {
+    shoot();
+  }
+});
+
+// START GAME
+
+document.getElementById("play").addEventListener("click", () => {
+  renderer.domElement.requestPointerLock();
+});
+
+document.addEventListener("pointerlockchange", () => {
+  const locked =
+    document.pointerLockElement === renderer.domElement;
+
+  document.getElementById("start").style.display =
+    locked ? "none" : "flex";
+});
+
+// RESIZE
+
+window.addEventListener("resize", () => {
+  camera.aspect = game.clientWidth / game.clientHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(game.clientWidth, game.clientHeight);
+});
+
+// GAME LOOP
+
+const clock = new THREE.Clock();
+
+function animate() {
+  requestAnimationFrame(animate);
+
+  const delta = Math.min(clock.getDelta(), 0.05);
+
+  movePlayer(delta);
+
+  const time = performance.now() * 0.001;
+
+  targets.forEach((target, index) => {
+    target.position.y = 2.5 + Math.sin(time * 2 + index) * 0.2;
+    target.rotation.y += delta * 0.6;
+  });
+
+  renderer.render(scene, camera);
+}
+
+animate();
+
+</script>
+</body>
+</html>
